@@ -71,7 +71,7 @@ def _compute_hypothesis(x, th):
         sum+=x[i]*th[i]
     return sum
 
-def gradient_descent(X, y, theta, alpha, num_iters, stop=False):
+def gradient_descent(X, y, theta, alpha, num_iters, stop=False, stop_if_gt=False, debug=False):
     """
     Learn the parameters of the model using gradient descent using 
     the training set. Gradient descent is an optimization algorithm 
@@ -91,11 +91,10 @@ def gradient_descent(X, y, theta, alpha, num_iters, stop=False):
     - theta: The learned parameters of your model.
     - J_history: the loss value for every iteration.
     """
-    STOP_AFTER_IDENTICAL = 10
-
     J_history = [] # Use a python list to save the cost value in every iteration
     init_cost = compute_cost(X, y, theta)
-    print(f"theta {theta}, for cost: {init_cost}")
+    if debug:
+        print(f"theta {theta}, for cost: {init_cost}")
 
     theta = theta.copy() # optional: theta outside the function will not change
 
@@ -108,12 +107,16 @@ def gradient_descent(X, y, theta, alpha, num_iters, stop=False):
         theta = np.array(theta_temps)
         cost = compute_cost(X, y, theta)
         J_history.append(cost)
-        print(f"Iter: {i} New theta arrived: {theta}, for cost: {cost}")
+        if debug:
+            print(f"Iter: {i} New theta arrived: {theta}, for cost: {cost}")
 
-        if stop:
-            if len(J_history) > STOP_AFTER_IDENTICAL:
-                last_batch = J_history[-1*STOP_AFTER_IDENTICAL:]
-                if len(set(last_batch)) == 1:
+        if len(J_history) > 1:
+            if stop: 
+                if abs(J_history[-1] - J_history[-2]) < 1e-8:
+                    return theta, J_history
+
+            if stop_if_gt:
+                if J_history[-2] < J_history[-1]:
                     return theta, J_history
 
     
@@ -148,17 +151,11 @@ def compute_pinv(X, y):
     - pinv_theta: The optimal parameters of your model.
     """
     
-    pinv_theta = []
-    ###########################################################################
-    # TODO: Implement the pseudoinverse algorithm.                            #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
-    return pinv_theta
+    X_t = np.transpose(X)
+    pinv_x = np.matmul(np.linalg.inv(np.matmul(X_t, X)), X_t)
+    return np.matmul(pinv_x, y)
 
-def efficient_gradient_descent(X, y, theta, alpha, num_iters):
+def efficient_gradient_descent(X, y, theta, alpha, num_iters, stop_if_gt=False, debug=False):
     """
     Learn the parameters of your model using the training set, but stop 
     the learning process once the improvement of the loss value is smaller 
@@ -176,17 +173,8 @@ def efficient_gradient_descent(X, y, theta, alpha, num_iters):
     - theta: The learned parameters of your model.
     - J_history: the loss value for every iteration.
     """
-    
-    theta = theta.copy() # optional: theta outside the function will not change
-    J_history = [] # Use a python list to save the cost value in every iteration
-    ###########################################################################
-    # TODO: Implement the efficient gradient descent optimization algorithm.  #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
-    return theta, J_history
+
+    return gradient_descent(X, y, theta, alpha, num_iters, stop=True, stop_if_gt=stop_if_gt, debug=debug)
 
 def find_best_alpha(X_train, y_train, X_val, y_val, iterations):
     """
@@ -206,13 +194,31 @@ def find_best_alpha(X_train, y_train, X_val, y_val, iterations):
     
     alphas = [0.00001, 0.00003, 0.0001, 0.0003, 0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 2, 3]
     alpha_dict = {} # {alpha_value: validation_loss}
-    ###########################################################################
-    # TODO: Implement the function and find the best alpha value.             #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
+
+    theta = compute_pinv(X=X_val, y=y_val)
+    #theta = np.array([-1, 2])
+
+    for alpha in alphas:
+        print(f"Trying alpha: {alpha}")
+        _, j_history = efficient_gradient_descent(
+            X=X_train, 
+            y=y_train, 
+            theta=theta, 
+            alpha=alpha, 
+            num_iters=iterations,
+            stop_if_gt=True
+        )
+        
+        min_loss = j_history[0]
+        for i in range(0, len(j_history), 100):
+            if min_loss >= j_history[i]:
+                min_loss = j_history[i]
+            else:
+                alpha_dict[alpha] = min_loss
+                break
+
+        alpha_dict[alpha] = min_loss
+
     return alpha_dict
 
 def forward_feature_selection(X_train, y_train, X_val, y_val, best_alpha, iterations):
