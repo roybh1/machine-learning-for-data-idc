@@ -19,16 +19,17 @@ def preprocess(X,y):
     - X: The mean normalized inputs.
     - y: The mean normalized labels.
     """
-    ###########################################################################
-    # TODO: Implement the normalization function.                             #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
-    return X, y
+    df = pd.read_csv("./data.csv")
 
-def apply_bias_trick(X):
+    X = df['sqft_living'].values
+    y = df['price'].values
+
+    normalized_X = (X - X.min()) / (X.max() - X.min())
+    normalized_y = (y - y.min()) / (y.max() - y.min())
+
+    return normalized_X, normalized_y
+
+def apply_bias_trick(X: np.ndarray):
     """
     Applies the bias trick to the input data.
 
@@ -39,14 +40,8 @@ def apply_bias_trick(X):
     - X: Input data with an additional column of ones in the
         zeroth position (m instances over n+1 features).
     """
-    ###########################################################################
-    # TODO: Implement the bias trick by adding a column of ones to the data.                             #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
-    return X
+    
+    return np.c_[np.ones(len(X)), X]
 
 def compute_cost(X, y, theta):
     """
@@ -61,18 +56,22 @@ def compute_cost(X, y, theta):
     Returns:
     - J: the cost associated with the current set of parameters (single number).
     """
-    
-    J = 0  # We use J for the cost.
-    ###########################################################################
-    # TODO: Implement the MSE cost function.                                  #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
-    return J
 
-def gradient_descent(X, y, theta, alpha, num_iters):
+    m = len(X)
+
+    sigma = 0
+    for i in range(m):
+        sigma+=(_compute_hypothesis(X[i], theta)-y[i]) ** 2
+    
+    return (1.0/(2*m)) * (sigma)
+
+def _compute_hypothesis(x, th):
+    sum = 0
+    for i in range(len(x)):
+        sum+=x[i]*th[i]
+    return sum
+
+def gradient_descent(X, y, theta, alpha, num_iters, stop=False):
     """
     Learn the parameters of the model using gradient descent using 
     the training set. Gradient descent is an optimization algorithm 
@@ -92,17 +91,45 @@ def gradient_descent(X, y, theta, alpha, num_iters):
     - theta: The learned parameters of your model.
     - J_history: the loss value for every iteration.
     """
-    
-    theta = theta.copy() # optional: theta outside the function will not change
+    STOP_AFTER_IDENTICAL = 10
+
     J_history = [] # Use a python list to save the cost value in every iteration
-    ###########################################################################
-    # TODO: Implement the gradient descent optimization algorithm.            #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
+    init_cost = compute_cost(X, y, theta)
+    print(f"theta {theta}, for cost: {init_cost}")
+
+    theta = theta.copy() # optional: theta outside the function will not change
+
+    for i in range(num_iters):
+        theta_temps = []
+        for j in range(len(theta)):
+            theta_temps.append(theta[j] - alpha*_compute_partial_derivative(X, y, theta, j))
+
+        # update theta
+        theta = np.array(theta_temps)
+        cost = compute_cost(X, y, theta)
+        J_history.append(cost)
+        print(f"Iter: {i} New theta arrived: {theta}, for cost: {cost}")
+
+        if stop:
+            if len(J_history) > STOP_AFTER_IDENTICAL:
+                last_batch = J_history[-1*STOP_AFTER_IDENTICAL:]
+                if len(set(last_batch)) == 1:
+                    return theta, J_history
+
+    
     return theta, J_history
+
+def _compute_partial_derivative(X, y, theta, j):
+    """
+    j: theta[j] to compute partial deriv by
+    """
+    m = len(X)
+    sum = 0
+    for i in range(m):
+        for j in range(len(theta)):
+            sum+=(theta[j]*X[i][j]-y[i])*X[i][j]
+
+    return (1.0/m) * sum
 
 def compute_pinv(X, y):
     """
