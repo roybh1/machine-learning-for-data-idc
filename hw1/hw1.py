@@ -54,14 +54,14 @@ def compute_cost(X, y, theta):
 
     m = len(X)
 
-    sigma = 0
+    sigma = 0.0
     for i in range(m):
         sigma+=(_compute_hypothesis(X[i], theta)-y[i]) ** 2
     
     return (1.0/(2*m)) * (sigma)
 
 def _compute_hypothesis(x_i, th):
-    sum = 0
+    sum = 0.0
     for j in range(len(x_i)):
         sum+=x_i[j]*th[j]
     return sum
@@ -96,9 +96,7 @@ def gradient_descent(X, y, theta, alpha, num_iters, stop=False, stop_if_gt=False
     for i in range(num_iters):
         theta_temps = []
         for j in range(len(theta)):
-            partial_deriv = _compute_partial_derivative(X,y, theta, j)
-            if debug:
-                print(f"For theta {theta[j]}, id {j} we will subtract: {alpha*partial_deriv}")
+            partial_deriv = _compute_partial_derivative(X, y, theta, j)
             theta_temps.append(theta[j] - alpha*partial_deriv)
 
         # update theta
@@ -125,14 +123,14 @@ def _compute_partial_derivative(X, y, theta, _by_j):
     _by_j: index to compute partial deriv by
     """
     m = len(X)
-    sum = 0
+    sum = 0.0
     for i in range(m):
         temp = 0.0
         for j in range(len(theta)): # dim agnostic method
-            temp+=theta[j]*X[i][j]
-        sum+=(temp-y[i])*X[i][_by_j]
+            temp+=theta[j]*(X[i][j])
+        sum+=(temp-y[i])*(X[i][_by_j])
 
-    return (1.0/m) * sum
+    return sum / m
 
 def compute_pinv(X, y):
     """
@@ -240,14 +238,37 @@ def forward_feature_selection(X_train, y_train, X_val, y_val, best_alpha, iterat
     - selected_features: A list of selected top 5 feature indices
     """
     selected_features = []
-    #####c######################################################################
-    # TODO: Implement the function and find the best alpha value.             #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
+
+    pinv_theta = compute_pinv(X=X_val, y=y_val)
+
+    available_features = X_train # REMOVE added feature
+    for _ in range(5):
+        features_to_cost = {}
+        for feature in available_features:
+            temp_features = selected_features + [feature]
+            temp_X = X_train.drop(temp_features)
+            _, J_history = efficient_gradient_descent(
+                X=temp_X, 
+                y=y_train, 
+                theta=pinv_theta, 
+                alpha=best_alpha, 
+                num_iters=iterations, 
+                stop_if_gt=False, 
+                debug=False
+            )
+            features_to_cost[temp_features] = J_history[-1]
+
+        min_cost = max(features_to_cost.values())
+        best_features_set = []
+        for key in features_to_cost.keys():
+            if features_to_cost[key] < min_cost:
+                best_features_set = key 
+
+        selected_features = best_features_set
+            
+
     return selected_features
+
 
 def create_square_features(df):
     """
