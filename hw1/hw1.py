@@ -19,11 +19,6 @@ def preprocess(X,y):
     - X: The mean normalized inputs.
     - y: The mean normalized labels.
     """
-    df = pd.read_csv("./data.csv")
-
-    X = df['sqft_living'].values
-    y = df['price'].values
-
     normalized_X = (X - X.min()) / (X.max() - X.min())
     normalized_y = (y - y.min()) / (y.max() - y.min())
 
@@ -65,10 +60,10 @@ def compute_cost(X, y, theta):
     
     return (1.0/(2*m)) * (sigma)
 
-def _compute_hypothesis(x, th):
+def _compute_hypothesis(x_i, th):
     sum = 0
-    for i in range(len(x)):
-        sum+=x[i]*th[i]
+    for j in range(len(x_i)):
+        sum+=x_i[j]*th[j]
     return sum
 
 def gradient_descent(X, y, theta, alpha, num_iters, stop=False, stop_if_gt=False, debug=False):
@@ -101,7 +96,10 @@ def gradient_descent(X, y, theta, alpha, num_iters, stop=False, stop_if_gt=False
     for i in range(num_iters):
         theta_temps = []
         for j in range(len(theta)):
-            theta_temps.append(theta[j] - alpha*_compute_partial_derivative(X, y, theta, j))
+            partial_deriv = _compute_partial_derivative(X,y, theta, j)
+            if debug:
+                print(f"For theta {theta[j]}, id {j} we will subtract: {alpha*partial_deriv}")
+            theta_temps.append(theta[j] - alpha*partial_deriv)
 
         # update theta
         theta = np.array(theta_temps)
@@ -122,15 +120,17 @@ def gradient_descent(X, y, theta, alpha, num_iters, stop=False, stop_if_gt=False
     
     return theta, J_history
 
-def _compute_partial_derivative(X, y, theta, j):
+def _compute_partial_derivative(X, y, theta, _by_j):
     """
-    j: theta[j] to compute partial deriv by
+    _by_j: index to compute partial deriv by
     """
     m = len(X)
     sum = 0
     for i in range(m):
-        for j in range(len(theta)):
-            sum+=(theta[j]*X[i][j]-y[i])*X[i][j]
+        temp = 0.0
+        for j in range(len(theta)): # dim agnostic method
+            temp+=theta[j]*X[i][j]
+        sum+=(temp-y[i])*X[i][_by_j]
 
     return (1.0/m) * sum
 
