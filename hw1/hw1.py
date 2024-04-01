@@ -19,8 +19,8 @@ def preprocess(X,y):
     - X: The mean normalized inputs.
     - y: The mean normalized labels.
     """
-    normalized_X = (X - X.min()) / (X.max() - X.min())
-    normalized_y = (y - y.min()) / (y.max() - y.min())
+    normalized_X = (X - X.mean()) / (X.max() - X.min())
+    normalized_y = (y - y.mean()) / (y.max() - y.min())
 
     return normalized_X, normalized_y
 
@@ -193,29 +193,21 @@ def find_best_alpha(X_train, y_train, X_val, y_val, iterations):
     alphas = [0.00001, 0.00003, 0.0001, 0.0003, 0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 2, 3]
     alpha_dict = {} # {alpha_value: validation_loss}
 
-    theta = compute_pinv(X=X_val, y=y_val)
-    #theta = np.array([-1, 2])
+    np.random.seed(42)
+    init_theta = np.random.random(size=np.size(X_train, 1))
 
     for alpha in alphas:
         print(f"Trying alpha: {alpha}")
-        _, j_history = efficient_gradient_descent(
+        theta, _= efficient_gradient_descent(
             X=X_train, 
             y=y_train, 
-            theta=theta, 
+            theta=init_theta, 
             alpha=alpha, 
             num_iters=iterations,
             stop_if_gt=True
         )
         
-        min_loss = j_history[0]
-        for i in range(0, len(j_history), 100):
-            if min_loss >= j_history[i]:
-                min_loss = j_history[i]
-            else:
-                alpha_dict[alpha] = min_loss
-                break
-
-        alpha_dict[alpha] = min_loss
+        alpha_dict[alpha] = compute_cost(X_val, y_val, theta)
 
     return alpha_dict
 
@@ -239,33 +231,27 @@ def forward_feature_selection(X_train, y_train, X_val, y_val, best_alpha, iterat
     """
     selected_features = []
 
-    pinv_theta = compute_pinv(X=X_val, y=y_val)
+    np.random.seed(42)
 
-    available_features = X_train # REMOVE added feature
     for _ in range(5):
         features_to_cost = {}
-        for feature in available_features:
-            temp_features = selected_features + [feature]
-            temp_X = X_train.drop(temp_features)
-            _, J_history = efficient_gradient_descent(
-                X=temp_X, 
-                y=y_train, 
-                theta=pinv_theta, 
-                alpha=best_alpha, 
-                num_iters=iterations, 
-                stop_if_gt=False, 
-                debug=False
-            )
-            features_to_cost[temp_features] = J_history[-1]
+        for feature in range(np.size(X_train,1)):
+            x_val = apply_bias_trick(X_val[:, selected_features])
+            x_train = apply_bias_trick(X_train[:, selected_features])
+            init_theta = np.random.random(size=np.size(x_train, 1))
+            if feature not in selected_features:
+                temp_features = selected_features + [feature]
+                theta, _ = efficient_gradient_descent(
+                    X=x_train,
+                    y=y_train, 
+                    theta=init_theta, 
+                    alpha=best_alpha, 
+                    num_iters=iterations, 
+                )
+                features_to_cost[compute_cost(X=x_val, y=y_val, theta=theta)] = temp_features
 
-        min_cost = max(features_to_cost.values())
-        best_features_set = []
-        for key in features_to_cost.keys():
-            if features_to_cost[key] < min_cost:
-                best_features_set = key 
-
-        selected_features = best_features_set
-            
+        min_cost = min(features_to_cost.keys())
+        selected_features = features_to_cost[min_cost] 
 
     return selected_features
 
