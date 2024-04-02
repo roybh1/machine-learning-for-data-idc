@@ -1,6 +1,6 @@
 ###### Your ID ######
-# ID1: 123456789
-# ID2: 987654321
+# ID1: 208951111
+# ID2: 322315755
 #####################
 
 # imports 
@@ -268,12 +268,17 @@ def create_square_features(df):
                with appropriate feature names
     """
 
-    df_poly = df.copy()
-    ###########################################################################
-    # TODO: Implement the function to add polynomial features                 #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
-    return df_poly
+    new_df = df.copy()
+    new_columns = {}
+    df_length = len(df.columns)
+    for i in range(df_length):
+        col1 = df[df.columns[i]]
+        col1_name = df.columns[i]
+        for j in range(i, df_length):
+            col2 = df[df.columns[j]]
+            col2_name = df.columns[j]
+            new_label = f"{col1_name} * {col2_name}"
+            new_columns[new_label] = col1 * col2
+    new_columns_df = pd.DataFrame(new_columns)
+    new_df = pd.concat([df, new_columns_df], axis=1)    
+    return new_df
