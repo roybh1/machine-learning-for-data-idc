@@ -7,7 +7,7 @@
 import numpy as np
 import pandas as pd
 
-debug = True
+debug = False
 
 def set_debug(v):
     debug=v
