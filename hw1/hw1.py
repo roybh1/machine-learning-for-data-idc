@@ -10,6 +10,9 @@ import pandas as pd
 debug = False
 
 def set_debug(v):
+    """
+    set prints in the code for debugging
+    """
     debug=v
 
 def preprocess(X,y):
@@ -57,19 +60,9 @@ def compute_cost(X, y, theta):
     - J: the cost associated with the current set of parameters (single number).
     """
 
-    m = len(X)
+    m = X.shape[0]
 
-    sigma = 0.0
-    for i in range(m):
-        sigma+=(_compute_hypothesis(X[i], theta)-y[i]) ** 2
-    
-    return (1.0/(2*m)) * (sigma)
-
-def _compute_hypothesis(x_i, th):
-    sum = 0.0
-    for j in range(len(x_i)):
-        sum+=x_i[j]*th[j]
-    return sum
+    return (1.0/(2*m)) * np.sum((np.dot(X, theta) - y) ** 2)
 
 def gradient_descent(X, y, theta, alpha, num_iters, stop=False):
     """
@@ -97,7 +90,8 @@ def gradient_descent(X, y, theta, alpha, num_iters, stop=False):
 
     for i in range(num_iters):
         if debug and i % 100 == 0:
-            print(f"Iteration num {i}")
+            pass
+            #print(f"Iteration num {i}")
         theta_temps = []
         for j in range(len(theta)):
             partial_deriv = _compute_partial_derivative(X, y, theta, j)
@@ -119,15 +113,7 @@ def _compute_partial_derivative(X, y, theta, _by_j):
     """
     _by_j: index to compute partial deriv by
     """
-    m = len(X)
-    sum = 0.0
-    for i in range(m):
-        temp = 0.0
-        for j in range(len(theta)): # dim agnostic method
-            temp+=theta[j]*(X[i][j])
-        sum+=(temp-y[i])*(X[i][_by_j])
-
-    return sum / m
+    return np.sum((np.dot(X, theta) - y) * X[:, _by_j]) / X.shape[0]
 
 def compute_pinv(X, y):
     """
