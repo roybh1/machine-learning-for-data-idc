@@ -7,6 +7,11 @@
 import numpy as np
 import pandas as pd
 
+debug = True
+
+def set_debug(v):
+    debug=v
+
 def preprocess(X,y):
     """
     Perform mean normalization on the features and true labels.
@@ -19,8 +24,8 @@ def preprocess(X,y):
     - X: The mean normalized inputs.
     - y: The mean normalized labels.
     """
-    normalized_X = (X - X.mean()) / (X.max() - X.min())
-    normalized_y = (y - y.mean()) / (y.max() - y.min())
+    normalized_X = (X - X.mean(axis=0)) / (X.max(axis=0) - X.min(axis=0))
+    normalized_y = (y - y.mean(axis=0)) / (y.max(axis=0) - y.min(axis=0))
 
     return normalized_X, normalized_y
 
@@ -66,7 +71,7 @@ def _compute_hypothesis(x_i, th):
         sum+=x_i[j]*th[j]
     return sum
 
-def gradient_descent(X, y, theta, alpha, num_iters, stop=False, stop_if_gt=False, debug=False):
+def gradient_descent(X, y, theta, alpha, num_iters, stop=False):
     """
     Learn the parameters of the model using gradient descent using 
     the training set. Gradient descent is an optimization algorithm 
@@ -87,13 +92,12 @@ def gradient_descent(X, y, theta, alpha, num_iters, stop=False, stop_if_gt=False
     - J_history: the loss value for every iteration.
     """
     J_history = [] # Use a python list to save the cost value in every iteration
-    init_cost = compute_cost(X, y, theta)
-    if debug:
-        print(f"theta {theta}, for cost: {init_cost}")
 
     theta = theta.copy() # optional: theta outside the function will not change
 
     for i in range(num_iters):
+        if i % 100 == 0:
+            print(f"Iteration num {i}")
         theta_temps = []
         for j in range(len(theta)):
             partial_deriv = _compute_partial_derivative(X, y, theta, j)
@@ -103,18 +107,13 @@ def gradient_descent(X, y, theta, alpha, num_iters, stop=False, stop_if_gt=False
         theta = np.array(theta_temps)
         cost = compute_cost(X, y, theta)
         J_history.append(cost)
-        if debug:
-            print(f"Iter: {i} New theta arrived: {theta}, for cost: {cost}")
+        #if debug:
+        #    print(f"Iter: {i} New theta arrived: {theta}, for cost: {cost}")
 
         if len(J_history) > 1:
             if stop: 
-                if abs(J_history[-1] - J_history[-2]) < 1e-8:
+                if J_history[-2] - J_history[-1] < 1e-8:
                     return theta, J_history
-
-            if stop_if_gt:
-                if J_history[-2] < J_history[-1]:
-                    return theta, J_history
-
     
     return theta, J_history
 
@@ -153,7 +152,7 @@ def compute_pinv(X, y):
     pinv_x = np.matmul(np.linalg.inv(np.matmul(X_t, X)), X_t)
     return np.matmul(pinv_x, y)
 
-def efficient_gradient_descent(X, y, theta, alpha, num_iters, stop_if_gt=False, debug=False):
+def efficient_gradient_descent(X, y, theta, alpha, num_iters):
     """
     Learn the parameters of your model using the training set, but stop 
     the learning process once the improvement of the loss value is smaller 
@@ -172,7 +171,7 @@ def efficient_gradient_descent(X, y, theta, alpha, num_iters, stop_if_gt=False, 
     - J_history: the loss value for every iteration.
     """
 
-    return gradient_descent(X, y, theta, alpha, num_iters, stop=True, stop_if_gt=stop_if_gt, debug=debug)
+    return gradient_descent(X, y, theta, alpha, num_iters, stop=True)
 
 def find_best_alpha(X_train, y_train, X_val, y_val, iterations):
     """
@@ -197,14 +196,14 @@ def find_best_alpha(X_train, y_train, X_val, y_val, iterations):
     init_theta = np.random.random(size=np.size(X_train, 1))
 
     for alpha in alphas:
-        print(f"Trying alpha: {alpha}")
+        if debug:
+            print(f"Trying alpha: {alpha}")
         theta, _= efficient_gradient_descent(
             X=X_train, 
             y=y_train, 
             theta=init_theta, 
             alpha=alpha, 
             num_iters=iterations,
-            stop_if_gt=True
         )
         
         alpha_dict[alpha] = compute_cost(X_val, y_val, theta)
@@ -229,18 +228,23 @@ def forward_feature_selection(X_train, y_train, X_val, y_val, best_alpha, iterat
     Returns:
     - selected_features: A list of selected top 5 feature indices
     """
-    selected_features = []
-
     np.random.seed(42)
 
-    for _ in range(5):
-        features_to_cost = {}
+    features_to_test = []
+    best_features_per_iter = {i:[] for i in range(6)}
+
+    for i in range(1,6):
+        min_cost = 1 # arbitrarily large 
         for feature in range(np.size(X_train,1)):
-            x_val = apply_bias_trick(X_val[:, selected_features])
-            x_train = apply_bias_trick(X_train[:, selected_features])
-            init_theta = np.random.random(size=np.size(x_train, 1))
-            if feature not in selected_features:
-                temp_features = selected_features + [feature]
+            if feature not in best_features_per_iter[i]:
+                features_to_test = best_features_per_iter[i-1] + [feature] # get the best features from previous iter
+                if debug:
+                    print(f"Considering feature: {feature}")
+                x_val = apply_bias_trick(X_val[:, features_to_test])
+                x_train = apply_bias_trick(X_train[:, features_to_test])
+                init_theta = np.random.random(size=np.size(x_train, 1))
+                if debug:
+                    print(f"Considering feature set: {features_to_test}")
                 theta, _ = efficient_gradient_descent(
                     X=x_train,
                     y=y_train, 
@@ -248,12 +252,19 @@ def forward_feature_selection(X_train, y_train, X_val, y_val, best_alpha, iterat
                     alpha=best_alpha, 
                     num_iters=iterations, 
                 )
-                features_to_cost[compute_cost(X=x_val, y=y_val, theta=theta)] = temp_features
+                current_cost = compute_cost(X=x_val, y=y_val, theta=theta)
+                if not best_features_per_iter[i]:
+                    best_features_per_iter[i] = features_to_test
+                    min_cost = current_cost
+                elif min_cost > current_cost:
+                    if debug:
+                        print(f"found new min cost for {i} features: \n\
+                                old min_cost {min_cost}, new min_cost: {current_cost}. diff = {min_cost - current_cost} \n\
+                                old selected_features {best_features_per_iter[i]}, new selected_features: {features_to_test}")
+                    min_cost = current_cost
+                    best_features_per_iter[i] = features_to_test 
 
-        min_cost = min(features_to_cost.keys())
-        selected_features = features_to_cost[min_cost] 
-
-    return selected_features
+    return best_features_per_iter[5] 
 
 
 def create_square_features(df):
