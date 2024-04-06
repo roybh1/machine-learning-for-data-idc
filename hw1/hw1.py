@@ -96,7 +96,7 @@ def gradient_descent(X, y, theta, alpha, num_iters, stop=False):
     theta = theta.copy() # optional: theta outside the function will not change
 
     for i in range(num_iters):
-        if i % 100 == 0:
+        if debug and i % 100 == 0:
             print(f"Iteration num {i}")
         theta_temps = []
         for j in range(len(theta)):
@@ -107,8 +107,6 @@ def gradient_descent(X, y, theta, alpha, num_iters, stop=False):
         theta = np.array(theta_temps)
         cost = compute_cost(X, y, theta)
         J_history.append(cost)
-        #if debug:
-        #    print(f"Iter: {i} New theta arrived: {theta}, for cost: {cost}")
 
         if len(J_history) > 1:
             if stop: 
