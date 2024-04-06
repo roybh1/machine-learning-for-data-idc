@@ -212,8 +212,6 @@ def forward_feature_selection(X_train, y_train, X_val, y_val, best_alpha, iterat
     Returns:
     - selected_features: A list of selected top 5 feature indices
     """
-    np.random.seed(42)
-
     features_to_test = []
     best_features_per_iter = {i:[] for i in range(6)}
 
