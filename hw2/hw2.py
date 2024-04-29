@@ -222,6 +222,9 @@ class DecisionNode:
             # calc split_information
             split_information = _calc_entropy(self.data, feature)
 
+            if split_information == 0:
+                return 0, groups
+
             # calc gain ratio
             gain_ratio = goodness_of_split / split_information
             return gain_ratio, groups
@@ -288,7 +291,7 @@ class DecisionNode:
         for param in best_feature_params:
             group = self.data[self.data[:, self.feature] == param]
             d_f = len(group)
-            label_f = {label: group[group[:, -1] == label] for label in labels}
+            label_f = {label: len(group[group[:, -1] == label]) for label in labels}
             e_labels = {
                 label: (d_f * label_distribution_dict[label]) for label in labels
             }
@@ -329,6 +332,7 @@ class DecisionTree:
         self.max_depth = max_depth  # the maximum allowed depth of the tree
         self.gain_ratio = gain_ratio  #
         self.root: Optional[DecisionNode] = None  # the root node of the tree
+        self._depth = 0
 
     def build_tree(self):
         """
@@ -338,6 +342,7 @@ class DecisionTree:
 
         This function has no return value
         """
+        depth = 0
         root = DecisionNode(
             self.data,
             self.impurity_func,
@@ -352,15 +357,8 @@ class DecisionTree:
         while queue:
             current_node = queue.pop(0)
 
-            #if (len(np.unique(current_node.data)) == 1) or (current_node.feature is None):
-            #    current_node.terminal = True
-            #    continue
-
-            #else:
-            #    current_node.split()
-            #    for child in current_node.children:
-            #        queue.append(child)
-
+            if current_node.depth > depth:
+                depth = current_node.depth
 
             goodness_of_split = current_node.goodness_of_split(current_node.feature)[0]
             purity = self.impurity_func(current_node.data)
@@ -375,6 +373,7 @@ class DecisionTree:
                 current_node.terminal = True
 
         self.root = root
+        self._depth = depth
 
     def predict(self, instance):
         """
@@ -417,7 +416,7 @@ class DecisionTree:
         return (accurate / len(dataset)) * 100
 
     def depth(self):
-        return self.root.depth
+        return self._depth
 
 
 def depth_pruning(X_train, X_validation):
@@ -435,9 +434,12 @@ def depth_pruning(X_train, X_validation):
     """
     training = []
     validation = []
-    root = None
     for max_depth in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
-        pass
+        tree_entropy_gain_ratio = DecisionTree(data=X_train, impurity_func=calc_entropy,
+                                               gain_ratio=True, max_depth=max_depth)  # entropy and gain ratio
+        tree_entropy_gain_ratio.build_tree()
+        training.append(tree_entropy_gain_ratio.calc_accuracy(X_train))
+        validation.append(tree_entropy_gain_ratio.calc_accuracy(X_validation))
     return training, validation
 
 
@@ -456,11 +458,19 @@ def chi_pruning(X_train, X_test):
     - chi_validation_acc: the validation accuracy per chi value
     - depth: the tree depth for each chi value
     """
-    chi_training_acc = []
-    chi_validation_acc = []
+    training = []
+    validation = []
     depth = []
+    chi_values = [1, 0.5, 0.25, 0.1, 0.05, 0.0001]
+    for chi in chi_values:
+        tree_entropy_gain_ratio = DecisionTree(data=X_train, impurity_func=calc_entropy,
+                                               gain_ratio=True, chi=chi)  # entropy and gain ratio
+        tree_entropy_gain_ratio.build_tree()
+        training.append(tree_entropy_gain_ratio.calc_accuracy(X_train))
+        validation.append(tree_entropy_gain_ratio.calc_accuracy(X_test))
+        depth.append(tree_entropy_gain_ratio.depth())
 
-    return chi_training_acc, chi_testing_acc, depth
+    return training, validation, depth
 
 
 def count_nodes(node):
