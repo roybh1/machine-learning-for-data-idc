@@ -24,7 +24,7 @@ chi_table = {
 }
 
 
-def calc_gini(data: np.ndarray):
+def calc_gini_2(data: np.ndarray):
     """
     Calculate gini impurity measure of a dataset.
 
@@ -44,20 +44,20 @@ def calc_gini(data: np.ndarray):
     return 1.0 - sum([(label_count[label] / data_size) ** 2 for label in label_count])
 
 
-# def calc_gini_reference(data: np.ndarray):
-#    """
-#    Calculate gini impurity measure of a dataset.
-#
-#    Input:
-#    - data: any dataset where the last column holds the labels.
-#
-#    Returns:
-#    - gini: The gini impurity value.
-#    """
-#    data_size = len(data)
-#    _, count = np.unique(data[:, -1], return_counts=True)
-#
-#    return 1.0 - np.sum((count/data_size)**2)
+def calc_gini(data: np.ndarray):
+   """
+   Calculate gini impurity measure of a dataset.
+
+   Input:
+   - data: any dataset where the last column holds the labels.
+
+   Returns:
+   - gini: The gini impurity value.
+   """
+   data_size = len(data)
+   _, count = np.unique(data[:, -1], return_counts=True)
+
+   return 1.0 - np.sum((count/data_size)**2)
 
 
 def calc_entropy(data: np.ndarray):
@@ -128,7 +128,7 @@ class DecisionNode:
         gain_ratio: bool = False,
     ):
         self.data = data  # the relevant data for the node
-        self.feature = feature  # column index of criteria being tested
+        self.feature = feature # column index of criteria being tested
         self.pred = self.calc_node_pred()  # the prediction of the node
         self.depth = depth  # the current depth of the node
         self.children: List[DecisionNode] = []  # array that holds this nodes children
@@ -140,6 +140,8 @@ class DecisionNode:
         self.gain_ratio = gain_ratio
         self.feature_importance = 0
 
+        self.find_best_feature()
+
     def calc_node_pred(self) -> str:
         """
         Calculate the node prediction.
@@ -148,7 +150,6 @@ class DecisionNode:
         - pred: the prediction of the node
         """
         # Creating variables for calculate node predict.
-        pred = None
         param, count = np.unique(self.data[:, -1], return_counts=True)
         dict_param_count = dict(zip(param, count))
 
@@ -228,14 +229,10 @@ class DecisionNode:
         # calc goodness of split
         return goodness_of_split, groups
 
-    def split(self):
-        """
-        Splits the current node according to the self.impurity_func. This function finds
-        the best feature to split according to and create the corresponding children.
-        This function should support pruning according to self.chi and self.max_depth.
+    def find_best_feature(self):
+        if self.terminal:
+            return
 
-        This function has no return value
-        """
         features = len(self.data.T) - 1
         best_split = -1
         best_feature = -1
@@ -247,10 +244,21 @@ class DecisionNode:
 
         self.feature = best_feature
 
+
+    def split(self):
+        """
+        Splits the current node according to the self.impurity_func. This function finds
+        the best feature to split according to and create the corresponding children.
+        This function should support pruning according to self.chi and self.max_depth.
+
+        This function has no return value
+        """
+        if self.terminal:
+            return
+
         _, groups = self.goodness_of_split(self.feature)
 
-        # FIXME address self.chi
-        if (self.depth < self.max_depth) and (self.check_chi_test()):
+        if (self.depth <= self.max_depth) and (self.check_chi(len(groups))):
             for param, group in groups.items():
                 child = DecisionNode(
                     group,
@@ -262,20 +270,45 @@ class DecisionNode:
                 )
                 self.add_child(child, param)
 
-    def check_chi_test(self):
-        return True
-        # labels, label_counts = np.unique(self.data[:, -1], return_counts=True) # for labels (Y)
-        # label_distribution_dict = {labels[i]: label_counts[i]/len(self.data) for i in range(len(labels))}
+        else:
+            self.terminal = True
 
-        # best_feature_params = np.unique(self.data[:, self.feature])
+    def calc_chi_sqr(self):
+        labels, label_counts = np.unique(
+            self.data[:, -1], return_counts=True
+        )  # for labels (Y)
+        label_distribution_dict = {
+            labels[i]: label_counts[i] / len(self.data) for i in range(len(labels))
+        }
 
-        # for i in range(len(best_feature_params)):
-        #    param = best_feature_params[i]
-        #    group = self.data[self.data[:, self.feature] == param]
-        #    d_f =
-        #    p_f =
-        #    n_f =
-        #    e_i =
+        best_feature_params = np.unique(self.data[:, self.feature])
+
+        chi_sqr = 0
+
+        for param in best_feature_params:
+            group = self.data[self.data[:, self.feature] == param]
+            d_f = len(group)
+            label_f = {label: group[group[:, -1] == label] for label in labels}
+            e_labels = {
+                label: (d_f * label_distribution_dict[label]) for label in labels
+            }
+
+            chi_sqr += sum(
+                [
+                    ((label_f[label] - e_labels[label]) ** 2) / e_labels[label]
+                    for label in labels
+                ]
+            )
+
+        return chi_sqr
+
+    def check_chi(self, deg_of_freedom: int):
+        if self.chi == 1:
+            return True
+
+        chi_val = self.calc_chi_sqr()
+        chi_val_from_table = chi_table[deg_of_freedom][self.chi]
+        return chi_val >= chi_val_from_table
 
 
 class DecisionTree:
@@ -313,21 +346,33 @@ class DecisionTree:
             max_depth=self.max_depth,
             gain_ratio=self.gain_ratio,
         )
-        root.split()
 
         queue = [root]
 
         while queue:
             current_node = queue.pop(0)
-            if (current_node.goodness_of_split(current_node.feature)[0] > 0) and (
-                self.impurity_func(current_node.data) > 0
+
+            #if (len(np.unique(current_node.data)) == 1) or (current_node.feature is None):
+            #    current_node.terminal = True
+            #    continue
+
+            #else:
+            #    current_node.split()
+            #    for child in current_node.children:
+            #        queue.append(child)
+
+
+            goodness_of_split = current_node.goodness_of_split(current_node.feature)[0]
+            purity = self.impurity_func(current_node.data)
+            if (goodness_of_split > 0) and (
+                purity > 0
             ):
                 current_node.split()
                 for child in current_node.children:
                     queue.append(child)
 
             else:
-                break
+                current_node.terminal = True
 
         self.root = root
 
@@ -336,22 +381,22 @@ class DecisionTree:
         Predict a given instance
 
         Input:
-        - instance: an row vector from the dataset. Note that the last element
+        - instance: a row vector from the dataset. Note that the last element
                     of this vector is the label of the instance.
 
         Output: the prediction of the instance.
         """
-        pred = None
-        ###########################################################################
-        # TODO: Implement the function.                                           #
-        ###########################################################################
-        pass
-        ###########################################################################
-        #                             END OF YOUR CODE                            #
-        ###########################################################################
+        node = self.root
+        while not node.terminal:
+            instance_param_for_node_feature = instance[node.feature]
+
+            if instance_param_for_node_feature not in node.children_values:
+                return node.pred
+
+            node = node.children[node.children_values.index(instance_param_for_node_feature)]
         return node.pred
 
-    def calc_accuracy(self, dataset):
+    def calc_accuracy(self, dataset: np.ndarray):
         """
         Predict a given dataset
 
@@ -360,18 +405,19 @@ class DecisionTree:
 
         Output: the accuracy of the decision tree on the given dataset (%).
         """
-        accuracy = 0
-        ###########################################################################
-        # TODO: Implement the function.                                           #
-        ###########################################################################
-        pass
-        ###########################################################################
-        #                             END OF YOUR CODE                            #
-        ###########################################################################
-        return accuracy
+        accurate = 0.0
+        counter = 0
+        for row in dataset:
+            counter += 1
+            predicted_label = self.predict(row)
+            actual_label = row[-1]
+            if predicted_label == actual_label:
+                accurate+=1.0
+
+        return (accurate / len(dataset)) * 100
 
     def depth(self):
-        return self.root.depth()
+        return self.root.depth
 
 
 def depth_pruning(X_train, X_validation):
@@ -426,11 +472,14 @@ def count_nodes(node):
 
     Output: the number of node in the tree.
     """
-    ###########################################################################
-    # TODO: Implement the function.                                           #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
+    n_nodes = 1
+    queue = [node]
+
+    while queue:
+        current_node = queue.pop(0)
+        if (node.children):
+            for child in current_node.children:
+                n_nodes += 1
+                queue.append(child)
+
     return n_nodes
