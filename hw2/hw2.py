@@ -413,7 +413,7 @@ class DecisionTree:
             if predicted_label == actual_label:
                 accurate+=1.0
 
-        return (accurate / len(dataset)) * 100
+        return accurate / len(dataset) 
 
     def depth(self):
         return self._depth
