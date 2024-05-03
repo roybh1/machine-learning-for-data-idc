@@ -45,19 +45,19 @@ def calc_gini_2(data: np.ndarray):
 
 
 def calc_gini(data: np.ndarray):
-   """
-   Calculate gini impurity measure of a dataset.
+    """
+    Calculate gini impurity measure of a dataset.
 
-   Input:
-   - data: any dataset where the last column holds the labels.
+    Input:
+    - data: any dataset where the last column holds the labels.
 
-   Returns:
-   - gini: The gini impurity value.
-   """
-   data_size = len(data)
-   _, count = np.unique(data[:, -1], return_counts=True)
+    Returns:
+    - gini: The gini impurity value.
+    """
+    data_size = len(data)
+    _, count = np.unique(data[:, -1], return_counts=True)
 
-   return 1.0 - np.sum((count/data_size)**2)
+    return 1.0 - np.sum((count / data_size) ** 2)
 
 
 def calc_entropy(data: np.ndarray):
@@ -98,24 +98,6 @@ def _calc_entropy(data: np.ndarray, feature: int = -1):
     return -1.0 * s
 
 
-# def calc_entropy_reference(data: np.ndarray):
-#    """
-#    Calculate the entropy of a dataset.
-#
-#    Input:
-#    - data: any dataset where the last column holds the labels.
-#
-#    Returns:
-#    - entropy: The entropy value.
-#    """
-#    data_size = len(data)
-#    _, count = np.unique(data[:, -1], return_counts=True)
-#
-#    dist = count / data_size
-#
-#    return -1.0 * np.sum(np.dot(dist, np.log2(dist)))
-
-
 class DecisionNode:
     def __init__(
         self,
@@ -128,7 +110,7 @@ class DecisionNode:
         gain_ratio: bool = False,
     ):
         self.data = data  # the relevant data for the node
-        self.feature = feature # column index of criteria being tested
+        self.feature = feature  # column index of criteria being tested
         self.pred = self.calc_node_pred()  # the prediction of the node
         self.depth = depth  # the current depth of the node
         self.children: List[DecisionNode] = []  # array that holds this nodes children
@@ -247,7 +229,6 @@ class DecisionNode:
 
         self.feature = best_feature
 
-
     def split(self):
         """
         Splits the current node according to the self.impurity_func. This function finds
@@ -261,7 +242,11 @@ class DecisionNode:
 
         _, groups = self.goodness_of_split(self.feature)
 
-        if (self.depth <= self.max_depth) and (self.check_chi(len(groups))):
+        labels = np.unique(self.data[:, -1])
+
+        degrees_of_freedom = (len(labels) - 1) * (len(groups) - 1)
+
+        if (self.depth <= self.max_depth) and (self.check_chi(degrees_of_freedom)):
             for param, group in groups.items():
                 child = DecisionNode(
                     group,
@@ -357,14 +342,14 @@ class DecisionTree:
         while queue:
             current_node = queue.pop(0)
 
+            current_node.calc_feature_importance(len(root.data))
+
             if current_node.depth > depth:
                 depth = current_node.depth
 
             goodness_of_split = current_node.goodness_of_split(current_node.feature)[0]
             purity = self.impurity_func(current_node.data)
-            if (goodness_of_split > 0) and (
-                purity > 0
-            ):
+            if (goodness_of_split > 0) and (purity > 0):
                 current_node.split()
                 for child in current_node.children:
                     queue.append(child)
@@ -375,7 +360,7 @@ class DecisionTree:
         self.root = root
         self._depth = depth
 
-    def predict(self, instance):
+    def predict(self, instance) -> Optional[str]:
         """
         Predict a given instance
 
@@ -385,6 +370,9 @@ class DecisionTree:
 
         Output: the prediction of the instance.
         """
+        if not self.root:
+            return
+
         node = self.root
         while not node.terminal:
             instance_param_for_node_feature = instance[node.feature]
@@ -392,10 +380,12 @@ class DecisionTree:
             if instance_param_for_node_feature not in node.children_values:
                 return node.pred
 
-            node = node.children[node.children_values.index(instance_param_for_node_feature)]
+            node = node.children[
+                node.children_values.index(instance_param_for_node_feature)
+            ]
         return node.pred
 
-    def calc_accuracy(self, dataset: np.ndarray):
+    def calc_accuracy(self, dataset: np.ndarray) -> float:
         """
         Predict a given dataset
 
@@ -411,9 +401,9 @@ class DecisionTree:
             predicted_label = self.predict(row)
             actual_label = row[-1]
             if predicted_label == actual_label:
-                accurate+=1.0
+                accurate += 1.0
 
-        return accurate / len(dataset) 
+        return accurate / len(dataset)
 
     def depth(self):
         return self._depth
@@ -435,8 +425,12 @@ def depth_pruning(X_train, X_validation):
     training = []
     validation = []
     for max_depth in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
-        tree_entropy_gain_ratio = DecisionTree(data=X_train, impurity_func=calc_entropy,
-                                               gain_ratio=True, max_depth=max_depth)  # entropy and gain ratio
+        tree_entropy_gain_ratio = DecisionTree(
+            data=X_train,
+            impurity_func=calc_entropy,
+            gain_ratio=True,
+            max_depth=max_depth,
+        )  # entropy and gain ratio
         tree_entropy_gain_ratio.build_tree()
         training.append(tree_entropy_gain_ratio.calc_accuracy(X_train))
         validation.append(tree_entropy_gain_ratio.calc_accuracy(X_validation))
@@ -463,8 +457,9 @@ def chi_pruning(X_train, X_test):
     depth = []
     chi_values = [1, 0.5, 0.25, 0.1, 0.05, 0.0001]
     for chi in chi_values:
-        tree_entropy_gain_ratio = DecisionTree(data=X_train, impurity_func=calc_entropy,
-                                               gain_ratio=True, chi=chi)  # entropy and gain ratio
+        tree_entropy_gain_ratio = DecisionTree(
+            data=X_train, impurity_func=calc_entropy, gain_ratio=True, chi=chi
+        )  # entropy and gain ratio
         tree_entropy_gain_ratio.build_tree()
         training.append(tree_entropy_gain_ratio.calc_accuracy(X_train))
         validation.append(tree_entropy_gain_ratio.calc_accuracy(X_test))
@@ -487,7 +482,7 @@ def count_nodes(node):
 
     while queue:
         current_node = queue.pop(0)
-        if (node.children):
+        if node.children:
             for child in current_node.children:
                 n_nodes += 1
                 queue.append(child)
