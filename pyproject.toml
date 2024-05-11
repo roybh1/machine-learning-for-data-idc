@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "ml-hw3"
+version = "0.1.0"
+description = ""
+authors = ["Roy Ben Haroosh <roybh@cisco.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+jupyter = "^1.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.0.277"
+pyright = "^1.1.316"
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+pytest-aio = "^1.5.0"
+black = "^23.3.0"
+isort = "^5.12.0"
+httpx = "^0.24.1"
+pydantic = "^2.1.1"
+ipdb = "^0.13.13"
+
+[tool.isort]
+profile = "black"
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]
