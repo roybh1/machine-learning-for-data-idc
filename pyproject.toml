@@ -6,8 +6,10 @@ authors = ["Roy Ben Haroosh <roybh@cisco.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.9"
 jupyter = "^1.0.0"
+matplotlib = "^3.9.0"
+pandas = "^2.2.2"
 
 [build-system]
 requires = ["poetry-core"]

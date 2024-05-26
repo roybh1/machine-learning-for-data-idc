@@ -2,28 +2,29 @@ import numpy as np
 import pandas as pd
 
 
-def pearson_correlation( x, y):
+def pearson_correlation(x, y):
     """
     Calculate the Pearson correlation coefficient for two given columns of data.
 
     Inputs:
     - x: An array containing a column of m numeric values.
-    - y: An array containing a column of m numeric values. 
+    - y: An array containing a column of m numeric values.
 
     Returns:
-    - The Pearson correlation coefficient between the two columns.    
+    - The Pearson correlation coefficient between the two columns.
     """
-    r = 0.0
-    ###########################################################################
-    # TODO: Implement the function.                                           #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
-    return r
+    y_mean = np.mean(y, axis=0)
+    x_mean = np.mean(x)
 
-def feature_selection(X, y, n_features=5):
+    numerator = np.dot((x - x_mean), (y - y_mean))
+    denominator = (
+        np.dot((x - x_mean), (x - x_mean)) * np.dot((y - y_mean), (y - y_mean))
+    ) ** 0.5
+
+    return numerator / denominator
+
+
+def feature_selection(X: pd.DataFrame, y: pd.Series, n_features=5):
     """
     Select the best features using pearson correlation.
 
@@ -32,17 +33,18 @@ def feature_selection(X, y, n_features=5):
     - y: True labels (m instances).
 
     Returns:
-    - best_features: list of best features (names - list of strings).  
+    - best_features: list of best features (names - list of strings).
     """
-    best_features = []
-    ###########################################################################
-    # TODO: Implement the function.                                           #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
-    return best_features
+    feature_to_pearson_corr = {}
+    for feat_name, feat_data in X.items():
+        if feat_name not in ["date", "id"]:
+            feature_to_pearson_corr[feat_name] = pearson_correlation(
+                feat_data.to_numpy(), y
+            )
+
+    sorted_items = sorted(feature_to_pearson_corr.items(), key=lambda item: item[1])
+    return [item[0] for item in sorted_items[:n_features]]
+
 
 class LogisticRegressionGD(object):
     """
@@ -74,6 +76,51 @@ class LogisticRegressionGD(object):
         self.Js = []
         self.thetas = []
 
+    def apply_bias_trick(self, X: np.ndarray):
+        """
+        Applies the bias trick to the input data.
+
+        Input:
+        - X: Input data (m instances over n features).
+
+        Returns:
+        - X: Input data with an additional column of ones in the
+            zeroth position (m instances over n+1 features).
+        """
+        return np.c_[np.ones(len(X)), X]
+
+    def compute_cost(self, X, y):
+        sig = 1 / (1 + np.exp(-1 * np.dot(X, self.theta)))
+        epsilon = 1e-5  # small value to avoid log(0).
+        J = (-1.0 / len(y)) * (np.dot(y.T, np.log(sig + epsilon)) + np.dot((1 - y).T, np.log(1 - sig + epsilon)))
+        return J
+
+    def _compute_partial_derivative(self, X, y, _by_j):
+        """
+        _by_j: index to compute partial deriv by
+        """
+        h = 1 / (1 + np.exp(-1 * np.dot(X, self.theta)))
+        return np.sum((h - y) * X[:, _by_j]) / X.shape[0]
+
+    def fit_1(self, X, y):
+        X = self.apply_bias_trick(X)
+        np.random.seed(self.random_state)
+
+        self.theta = np.random.random(X.shape[1])
+
+        for _ in range(self.n_iter):
+            h = 1 / (1 + np.exp(-1 * np.dot(X, self.theta)))
+            gradient = np.dot(X.T, (h - y))
+            self.theta = self.theta - self.eta * gradient
+
+            # Calculate cost and check for convergence.
+            J = self.compute_cost(X, y)
+            self.Js.append(J)
+            self.thetas.append(self.theta.copy())
+
+            if len(self.Js) > 1 and abs(J - self.Js[-2]) < self.eps:
+                break
+
     def fit(self, X, y):
         """
         Fit training data (the learning phase).
@@ -93,16 +140,28 @@ class LogisticRegressionGD(object):
           Target values.
 
         """
+        X = self.apply_bias_trick(X)
+
         # set random seed
         np.random.seed(self.random_state)
+        shape = X.shape[1]
+        self.theta = np.random.random(size=shape)
 
-        ###########################################################################
-        # TODO: Implement the function.                                           #
-        ###########################################################################
-        pass
-        ###########################################################################
-        #                             END OF YOUR CODE                            #
-        ###########################################################################
+        for i in range(self.n_iter):
+            h = 1 / (1 + np.exp(-1 * np.dot(X, self.theta)))
+            gradient = np.dot(X.T, (h - y))
+            self.theta = self.theta - self.eta * gradient
+
+            cost = self.compute_cost(X, y)
+            self.Js.append(cost)
+            self.thetas.append(self.theta.copy())
+
+            if len(self.Js) > 1:
+                if abs(self.Js[-2] - self.Js[-1]) < self.eps:
+                    break
+
+        self.theta = self.thetas[-1]
+
 
     def predict(self, X):
         """
@@ -111,15 +170,11 @@ class LogisticRegressionGD(object):
         ----------
         X : {array-like}, shape = [n_examples, n_features]
         """
-        preds = None
-        ###########################################################################
-        # TODO: Implement the function.                                           #
-        ###########################################################################
-        pass
-        ###########################################################################
-        #                             END OF YOUR CODE                            #
-        ###########################################################################
-        return preds
+        X = self.apply_bias_trick(X)
+
+        sig = 1 / (1 + np.exp(-1 * np.dot(X, self.theta)))
+        return np.round(sig).astype(int)
+
 
 def cross_validation(X, y, folds, algo, random_state):
     """
@@ -159,17 +214,18 @@ def cross_validation(X, y, folds, algo, random_state):
     ###########################################################################
     return cv_accuracy
 
+
 def norm_pdf(data, mu, sigma):
     """
     Calculate normal desnity function for a given data,
     mean and standrad deviation.
- 
+
     Input:
     - x: A value we want to compute the distribution for.
     - mu: The mean value of the distribution.
     - sigma:  The standard deviation of the distribution.
- 
-    Returns the normal distribution pdf according to the given mu and sigma for the given x.    
+
+    Returns the normal distribution pdf according to the given mu and sigma for the given x.
     """
     p = None
     ###########################################################################
@@ -180,6 +236,7 @@ def norm_pdf(data, mu, sigma):
     #                             END OF YOUR CODE                            #
     ###########################################################################
     return p
+
 
 class EM(object):
     """
@@ -268,19 +325,20 @@ class EM(object):
     def get_dist_params(self):
         return self.weights, self.mus, self.sigmas
 
+
 def gmm_pdf(data, weights, mus, sigmas):
     """
     Calculate gmm desnity function for a given data,
     mean and standrad deviation.
- 
+
     Input:
     - data: A value we want to compute the distribution for.
     - weights: The weights for the GMM
     - mus: The mean values of the GMM.
     - sigmas:  The standard deviation of the GMM.
- 
+
     Returns the GMM distribution pdf according to the given mus, sigmas and weights
-    for the given data.    
+    for the given data.
     """
     pdf = None
     ###########################################################################
@@ -291,6 +349,7 @@ def gmm_pdf(data, weights, mus, sigmas):
     #                             END OF YOUR CODE                            #
     ###########################################################################
     return pdf
+
 
 class NaiveBayesGaussian(object):
     """
@@ -346,8 +405,9 @@ class NaiveBayesGaussian(object):
         ###########################################################################
         return preds
 
+
 def model_evaluation(x_train, y_train, x_test, y_test, k, best_eta, best_eps):
-    ''' 
+    """
     Read the full description of this function in the notebook.
 
     You should use visualization for self debugging using the provided
@@ -369,7 +429,7 @@ def model_evaluation(x_train, y_train, x_test, y_test, k, best_eta, best_eps):
     k : Number of gaussians in each dimension
     best_eta : best eta from cv
     best_eps : best eta from cv
-    ''' 
+    """
 
     lor_train_acc = None
     lor_test_acc = None
@@ -383,18 +443,22 @@ def model_evaluation(x_train, y_train, x_test, y_test, k, best_eta, best_eps):
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
-    return {'lor_train_acc': lor_train_acc,
-            'lor_test_acc': lor_test_acc,
-            'bayes_train_acc': bayes_train_acc,
-            'bayes_test_acc': bayes_test_acc}
+    return {
+        "lor_train_acc": lor_train_acc,
+        "lor_test_acc": lor_test_acc,
+        "bayes_train_acc": bayes_train_acc,
+        "bayes_test_acc": bayes_test_acc,
+    }
+
 
 def generate_datasets():
     from scipy.stats import multivariate_normal
-    '''
+
+    """
     This function should have no input.
     It should generate the two dataset as described in the jupyter notebook,
     and return them according to the provided return dict.
-    '''
+    """
     dataset_a_features = None
     dataset_a_labels = None
     dataset_b_features = None
@@ -406,8 +470,9 @@ def generate_datasets():
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
-    return{'dataset_a_features': dataset_a_features,
-           'dataset_a_labels': dataset_a_labels,
-           'dataset_b_features': dataset_b_features,
-           'dataset_b_labels': dataset_b_labels
-           }
+    return {
+        "dataset_a_features": dataset_a_features,
+        "dataset_a_labels": dataset_a_labels,
+        "dataset_b_features": dataset_b_features,
+        "dataset_b_labels": dataset_b_labels,
+    }
