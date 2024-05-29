@@ -200,19 +200,37 @@ def cross_validation(X, y, folds, algo, random_state):
     Returns the cross validation accuracy.
     """
 
-    cv_accuracy = None
-
-    # set random seed
+    mean_accuracy = None
     np.random.seed(random_state)
 
-    ###########################################################################
-    # TODO: Implement the function.                                           #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
-    return cv_accuracy
+    #1. shuffle the data and creates folds
+    indices = np.arange(X.shape[0])
+    np.random.shuffle(indices)
+    X = X[indices]
+    y = y[indices]
+    size = X.shape[0] // folds
+    accuracies = []
+
+    #2. train the model on each fold
+    for fold in range(folds):
+        start = fold * size
+        end = (fold + 1) * size
+
+        X_val = X[start:end]
+        y_val = y[start:end]
+        X_train = np.concatenate([X[:start], X[end:]], axis=0)
+        y_train = np.concatenate([y[:start], y[end:]], axis=0)
+
+        algo.fit(X_train, y_train)
+        y_pred = algo.predict(X_val)
+
+        accuracy = np.mean(y_pred == y_val)
+        accuracies.append(accuracy)
+
+    #3. calculate aggregated metrics
+    mean_accuracy = np.mean(accuracies)
+
+    return mean_accuracy
 
 
 def norm_pdf(data, mu, sigma):
@@ -227,15 +245,8 @@ def norm_pdf(data, mu, sigma):
 
     Returns the normal distribution pdf according to the given mu and sigma for the given x.
     """
-    p = None
-    ###########################################################################
-    # TODO: Implement the function.                                           #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
-    return p
+
+    return (1/(sigma*np.sqrt(2*np.pi))) * np.exp(-0.5*((data-mu)/sigma)**2)
 
 
 class EM(object):
@@ -452,7 +463,7 @@ def model_evaluation(x_train, y_train, x_test, y_test, k, best_eta, best_eps):
 
 
 def generate_datasets():
-    from scipy.stats import multivariate_normal
+    #from scipy.stats import multivariate_normal
 
     """
     This function should have no input.
