@@ -39,12 +39,10 @@ def feature_selection(X: pd.DataFrame, y: pd.Series, n_features=5):
     feature_to_pearson_corr = {}
     for feat_name, feat_data in X.items():
         if feat_name not in ["date", "id"]:
-            feature_to_pearson_corr[feat_name] = pearson_correlation(
-                feat_data.to_numpy(), y
-            )
+            feature_to_pearson_corr[feat_name] = abs(pearson_correlation(feat_data.to_numpy(), y))
 
-    sorted_items = sorted(feature_to_pearson_corr.items(), key=lambda item: item[1])
-    return [item[0] for item in sorted_items[:n_features]]
+    sorted_features = sorted(feature_to_pearson_corr.items(), key=lambda item: item[1], reverse=True)
+    return [item[0] for item in sorted_features[:n_features]]
 
 
 class LogisticRegressionGD(object):
