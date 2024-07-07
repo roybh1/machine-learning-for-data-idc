@@ -378,3 +378,4 @@ ui-tests/.yarn/*
 ui-tests/.pnp.*
 
 *.zip
+*.pdf
